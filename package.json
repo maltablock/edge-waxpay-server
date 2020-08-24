@@ -1,0 +1,42 @@
+{
+  "name": "edge-waxpay-server",
+  "description": "Creates free WAX accounts for Edge Wallet",
+  "version": "1.0.0",
+  "author": "Christoph Michel",
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start-dev": "NODE_ENV=development nodemon --exec ts-node src/index.ts",
+    "start": "NODE_ENV=production node build/index.js",
+    "build": "NODE_ENV=production tsc && npm run post-build",
+    "post-build": "cp -R src/views/ build/views/ && rm -rf logs",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@deltalabs/eos-utils": "^2.0.1",
+    "body-parser": "^1.18.1",
+    "cors": "^2.8.5",
+    "date-fns": "^2.6.0",
+    "dotenv": "^8.2.0",
+    "ejs": "^3.0.1",
+    "eosjs": "^20.0.0",
+    "eosjs-ecc": "^4.0.7",
+    "express": "^4.16.4",
+    "long": "^4.0.0",
+    "node-fetch": "^2.6.0",
+    "nodemon": "^1.19.4",
+    "ts-node": "^3.3.0",
+    "winston": "^3.2.1",
+    "winston-daily-rotate-file": "^4.4.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.10",
+    "@types/node": "^12.12.54",
+    "jest": "^26.4.2",
+    "supertest": "^4.0.2",
+    "ts-jest": "^26.2.0",
+    "typescript": "^3.8.3"
+  }
+}
