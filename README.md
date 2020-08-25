@@ -9,7 +9,7 @@ Creates a free WAX account.
 ### Example
 
 ```bash
-curl https://<baseUrl>/api/v1/activateAccount \
+curl --header 'Content-Type: application/json' https://<baseUrl>/api/v1/activateAccount \
   --data '{
   "requestedAccountName": "fabx.phoenix",
   "ownerPublicKey": "EOS6DBfLa7c9tgvUBb5LHCAKPG7J1TebFYkYW7sLPZXVhAWWm8zpn",

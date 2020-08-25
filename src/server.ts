@@ -12,7 +12,6 @@ app.use(cors());
 app.use(bodyParser.json());
 
 if(process.env.NODE_ENV !== `test`) {
-  console.log(process.env.NODE_ENV, `wtf`)
   app.use(logRequest);
 }
 
