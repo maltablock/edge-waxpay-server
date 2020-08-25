@@ -6,6 +6,7 @@ import { getNetwork, rpc, getNetworkName, api } from "../eos/networks";
 import { extractRpcError } from "../utils";
 import { getEnvConfig } from "../dotenv";
 import { addRateLimit, checkRateLimit } from "./utils/rate-limit";
+import { TTransactionResult } from "@deltalabs/eos-utils";
 
 type ErrorObject = {
   errorCode: string;
@@ -22,7 +23,12 @@ function getErrorObject(errorCode: string, message: string, data?: any) {
   return error;
 }
 
-async function createPremiumName(waxApi, name, ownerKey, activeKey) {
+async function createPremiumName(
+  waxApi,
+  name,
+  ownerKey,
+  activeKey
+): Promise<TTransactionResult["result"]> {
   const config = getEnvConfig()[getNetworkName()];
   const creator = `phoenix`;
   const actions = [];
@@ -96,7 +102,7 @@ async function createPremiumName(waxApi, name, ownerKey, activeKey) {
     },
   });
 
-  await waxApi.transact(
+  const result = await waxApi.transact(
     {
       actions,
     },
@@ -105,6 +111,8 @@ async function createPremiumName(waxApi, name, ownerKey, activeKey) {
       expireSeconds: 60,
     }
   );
+
+  return result;
 }
 
 export default class WaxController {
@@ -201,16 +209,11 @@ export default class WaxController {
           req.headers["x-forwarded-for"],
           req.connection.remoteAddress,
         ].filter(Boolean);
-        const publicKeysToCheck = [ownerPublicKey, activePublicKey]
+        const publicKeysToCheck = [ownerPublicKey, activePublicKey];
         try {
-          checkRateLimit(ipsToCheck, publicKeysToCheck)
+          checkRateLimit(ipsToCheck, publicKeysToCheck);
         } catch (error) {
-          errors.push(
-            getErrorObject(
-              `RateLimited`,
-              error.message,
-            )
-          );
+          errors.push(getErrorObject(`RateLimited`, error.message));
         }
       },
     ];
@@ -254,14 +257,25 @@ export default class WaxController {
 
     // create account
     try {
-      await createPremiumName(
+      const txResult = await createPremiumName(
         api,
         requestedAccountName,
         ownerPublicKey,
         activePublicKey
       );
+
+      const ipsToFilter = [
+        req.headers["x-forwarded-for"],
+        req.connection.remoteAddress,
+      ].filter(Boolean);
+      const publicKeysToFilter = [ownerPublicKey, activePublicKey];
+      addRateLimit(ipsToFilter, publicKeysToFilter);
+
+      return { requestedAccountName, ownerPublicKey, activePublicKey, transactionId: txResult.transaction_id };
     } catch (error) {
-      logger.error(`Unexpected error while creating account: ${extractRpcError(error)}`);
+      logger.error(
+        `Unexpected error while creating account: ${extractRpcError(error)}`
+      );
       return void res
         .status(500)
         .send([
@@ -271,14 +285,5 @@ export default class WaxController {
           ),
         ]);
     }
-
-    const ipsToFilter = [
-      req.headers["x-forwarded-for"],
-      req.connection.remoteAddress,
-    ].filter(Boolean);
-    const publicKeysToFilter = [ownerPublicKey, activePublicKey]
-    addRateLimit(ipsToFilter, publicKeysToFilter)
-
-    return { requestedAccountName, ownerPublicKey, activePublicKey };
   }
 }
