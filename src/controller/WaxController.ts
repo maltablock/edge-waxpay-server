@@ -5,6 +5,7 @@ import * as ecc from "eosjs-ecc";
 import { getNetwork, rpc, getNetworkName, api } from "../eos/networks";
 import { extractRpcError } from "../utils";
 import { getEnvConfig } from "../dotenv";
+import { addRateLimit, checkRateLimit } from "./utils/rate-limit";
 
 type ErrorObject = {
   errorCode: string;
@@ -92,22 +93,6 @@ async function createPremiumName(waxApi, name, ownerKey, activeKey) {
       stake_cpu_quantity: "0.90000000 WAX",
       stake_net_quantity: "0.10000000 WAX",
       transfer: true,
-    },
-  });
-  actions.push({
-    account: "eosio.token",
-    name: "transfer",
-    authorization: [
-      {
-        actor: creator,
-        permission: config.permission,
-      },
-    ],
-    data: {
-      from: `cmichelonwax`,
-      to: `cmichel`,
-      quantity: `1.00000000 WAX`,
-      memo: `should fail we don't want to create an acc`,
     },
   });
 
@@ -210,6 +195,24 @@ export default class WaxController {
           }
         });
       },
+      () => {
+        // check if rate-limited
+        const ipsToCheck = [
+          req.headers["x-forwarded-for"],
+          req.connection.remoteAddress,
+        ].filter(Boolean);
+        const publicKeysToCheck = [ownerPublicKey, activePublicKey]
+        try {
+          checkRateLimit(ipsToCheck, publicKeysToCheck)
+        } catch (error) {
+          errors.push(
+            getErrorObject(
+              `RateLimited`,
+              error.message,
+            )
+          );
+        }
+      },
     ];
 
     validations.forEach((valFn, i) => {
@@ -226,20 +229,20 @@ export default class WaxController {
       await rpc.get_account(requestedAccountName);
       errors.push(
         getErrorObject(
-          `InvalidAccountNameFormat`,
+          `InvalidAccountName`,
           `The requested account name '${requestedAccountName}' already exists.`
         )
       );
     } catch (error) {
       const rpcError = extractRpcError(error);
-      if (/account exists/i.test(rpcError)) {
+      if (/unknown key/i.test(rpcError)) {
         // do nothing
       } else {
         logger.error(`Unexpected error while fetching account: ${rpcError}`);
         errors.push(
           getErrorObject(
-            `InvalidAccountNameFormat`,
-            `Something went wrong while creating the account.`
+            `AccountCreationFailure`,
+            `Something went wrong while checking account name availability.`
           )
         );
       }
@@ -258,15 +261,23 @@ export default class WaxController {
         activePublicKey
       );
     } catch (error) {
+      logger.error(`Unexpected error while creating account: ${extractRpcError(error)}`);
       return void res
         .status(500)
         .send([
           getErrorObject(
-            `InvalidAccountNameFormat`,
+            `AccountCreationFailure`,
             `Something went wrong while creating the account.`
           ),
         ]);
     }
+
+    const ipsToFilter = [
+      req.headers["x-forwarded-for"],
+      req.connection.remoteAddress,
+    ].filter(Boolean);
+    const publicKeysToFilter = [ownerPublicKey, activePublicKey]
+    addRateLimit(ipsToFilter, publicKeysToFilter)
 
     return { requestedAccountName, ownerPublicKey, activePublicKey };
   }

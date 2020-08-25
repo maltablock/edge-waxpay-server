@@ -15,17 +15,19 @@ export const formatBloksTransaction = (network: NetworkName, txId: string) => {
   return `https://${prefix}bloks.io/transaction/${txId}`;
 };
 
+const getEosErrorDetails = (eosError: { details: any[]}) => {
+  return eosError.details.map(detail => {
+    return detail.message
+  }).join(`\n`)
+}
 export const extractRpcError = (err: Error|RpcError|any) => {
   let message = err.message
   if(err instanceof RpcError) {
     try {
-      message = JSON.parse(err.message).error.details.map(detail => {
-        return detail.message
-      }).join(`\n`)
+      message = getEosErrorDetails(JSON.parse(err.message).error)
     } catch {}
   } else if (err.json) {
-    // might only be LiquidApps client lib
-    if(err.json.error) return err.json.error;
+    if(err.json.error) return getEosErrorDetails(err.json.error);
   }
   return message
 }

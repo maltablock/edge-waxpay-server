@@ -40,4 +40,17 @@ describe(`createAccount`, () => {
       expect.arrayContaining(expectedErrors)
     );
   });
+
+  it.skip("can create an account", async () => {
+    const app = request(_app) as any;
+    const params = {
+      requestedAccountName: `fabx.phoenix`,
+      ownerPublicKey: `EOS5csHP9HNjy1y24KZu4PftFxdqxZWSs8hnjrTW8qXq73p6ZM8EU`,
+      activePublicKey: `EOS5csHP9HNjy1y24KZu4PftFxdqxZWSs8hnjrTW8qXq73p6ZM8EU`,
+    }
+    const res = await app.post("/api/v1/activateAccount").send(params);
+
+    expect(res.body).toMatchObject(params);
+    expect(res.statusCode).toEqual(200);
+  });
 });
