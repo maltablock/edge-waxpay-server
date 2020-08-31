@@ -7,6 +7,7 @@ import { extractRpcError } from "../utils";
 import { getEnvConfig } from "../dotenv";
 import { addRateLimit, checkRateLimit } from "./utils/rate-limit";
 import { TTransactionResult } from "@deltalabs/eos-utils";
+import * as crypto from "crypto";
 
 type ErrorObject = {
   errorCode: string;
@@ -115,15 +116,55 @@ async function createPremiumName(
   return result;
 }
 
+async function checkAccountExists(account: string) {
+  try {
+    await rpc.get_account(account);
+    return true;
+  } catch (error) {
+    const rpcError = extractRpcError(error);
+    if (/unknown key/i.test(rpcError)) {
+      // error when account does not exist yet
+      return false;
+    } else {
+      throw error;
+    }
+  }
+}
+async function getFreeName(waxApi): Promise<string> {
+  let name = ``;
+
+  const getRandomName = () => {
+    const letters = `abcdefghijklmnopqrstuvwxyz12345`.split(``);
+
+    const buf = Array.from(new Uint8Array(crypto.randomBytes(4)));
+    const prefix = buf.map((val) => letters[val % letters.length]).join(``);
+    return `${prefix}.phoenix`;
+  };
+
+  let isFree = false;
+  let counter = 0;
+  const MAX_TRIES = 10;
+  while (!isFree && counter < MAX_TRIES) {
+    name = getRandomName();
+    isFree = !(await checkAccountExists(name));
+    counter++;
+  }
+
+  if (counter == MAX_TRIES) {
+    throw new Error(`could not find a free account name`);
+  }
+
+  return name;
+}
+
 export default class WaxController {
   // https://github.com/EdgeApp/edge-eospay-server/blob/67d79cabdba31247960b4cfdd5d4e104a1e55c99/src/eos-name-server.js#L301
   async activateAccount(req: Request, res: Response, next: NextFunction) {
     const body = req.body;
     const errors = [];
-    const { requestedAccountName, ownerPublicKey, activePublicKey } = body;
+    const { ownerPublicKey, activePublicKey } = body;
 
     const bodyParams = [
-      "requestedAccountName",
       "ownerPublicKey",
       "activePublicKey",
     ];
@@ -141,46 +182,24 @@ export default class WaxController {
           return;
         }
 
+        if (typeof body.requestedAccountName === "string") {
+          errors.push(
+            getErrorObject(
+              `Invalid_POST_Body`,
+              `The 'requestedAccountName' parameter is not available on this endpoint. A free account name will be chosen instead.`
+            )
+          );
+        }
+
         bodyParams.forEach((param) => {
           // console.log(`Validating: ${param}...`)
           if (
             body.hasOwnProperty(param) &&
-            typeof body[param] !== "undefined" &&
+            typeof body[param] === "string" &&
             body[param] &&
-            body[param].length > 0 &&
-            typeof body[param] === "string"
+            body[param].length > 0
           ) {
             switch (param) {
-              case "requestedAccountName": {
-                if (body[param].length != 12) {
-                  errors.push(
-                    getErrorObject(
-                      `InvalidAccountNameFormat`,
-                      `The requested account name "'${body[param]}'" is not 12 characters long. This server is not prepared to handle bidding on acccount names shorter than 12 characters for the EOS network.`
-                    )
-                  );
-                }
-
-                if (!(body[param] as string).endsWith(`.phoenix`)) {
-                  errors.push(
-                    getErrorObject(
-                      `InvalidAccountNameFormat`,
-                      `The requested account name "'${body[param]}'" does not end with '.phoenix'. All free WAX accounts must have the '.phoenix' suffix.`
-                    )
-                  );
-                }
-
-                if (!/[a-z1-5]{1,4}\.phoenix/.test(body[param])) {
-                  errors.push(
-                    getErrorObject(
-                      `InvalidAccountNameFormat`,
-                      `The requested account name "'${body[param]}'" is invalid.`
-                    )
-                  );
-                }
-
-                break;
-              }
               case "ownerPublicKey":
               case "activePublicKey":
                 if (!ecc.isValidPublic(body[param])) {
@@ -227,39 +246,12 @@ export default class WaxController {
       return void res.status(500).send(errors);
     }
 
-    // does account already exist?
-    try {
-      await rpc.get_account(requestedAccountName);
-      errors.push(
-        getErrorObject(
-          `InvalidAccountName`,
-          `The requested account name '${requestedAccountName}' already exists.`
-        )
-      );
-    } catch (error) {
-      const rpcError = extractRpcError(error);
-      if (/unknown key/i.test(rpcError)) {
-        // do nothing
-      } else {
-        logger.error(`Unexpected error while fetching account: ${rpcError}`);
-        errors.push(
-          getErrorObject(
-            `AccountCreationFailure`,
-            `Something went wrong while checking account name availability.`
-          )
-        );
-      }
-    }
-
-    if (errors.length > 0) {
-      return void res.status(500).send(errors);
-    }
-
     // create account
     try {
+      const accountName = await getFreeName(api);
       const txResult = await createPremiumName(
         api,
-        requestedAccountName,
+        accountName,
         ownerPublicKey,
         activePublicKey
       );
@@ -271,9 +263,17 @@ export default class WaxController {
       const publicKeysToFilter = [ownerPublicKey, activePublicKey];
       addRateLimit(ipsToFilter, publicKeysToFilter);
 
-      return { requestedAccountName, ownerPublicKey, activePublicKey, transactionId: txResult.transaction_id };
+      return {
+        accountName,
+        ownerPublicKey,
+        activePublicKey,
+        transactionId: txResult.transaction_id,
+      };
     } catch (error) {
       logger.error(
+        `Unexpected error while creating account: ${extractRpcError(error)}`
+      );
+      console.error(
         `Unexpected error while creating account: ${extractRpcError(error)}`
       );
       return void res

@@ -11,7 +11,6 @@ Creates a free WAX account.
 ```bash
 curl --header 'Content-Type: application/json' https://<baseUrl>/api/v1/activateAccount \
   --data '{
-  "requestedAccountName": "fabx.phoenix",
   "ownerPublicKey": "EOS6DBfLa7c9tgvUBb5LHCAKPG7J1TebFYkYW7sLPZXVhAWWm8zpn",
   "activePublicKey": "EOS6DBfLa7c9tgvUBb5LHCAKPG7J1TebFYkYW7sLPZXVhAWWm8zpn"
 }'
@@ -19,13 +18,11 @@ curl --header 'Content-Type: application/json' https://<baseUrl>/api/v1/activate
 
 ### Parameters
 
-- `requestedAccountName`: The desired WAX account name to create. Must be 12 characters in total and end in `.phoenix`.
 - `ownerPublicKey`: The desired owner public key of the account to create
 - `activePublicKey`: The desired active public key of the account to create
 
 ```ts
 type RequestPayload = {
-  requestedAccountName: string;
   ownerPublicKey: string;
   activePublicKey: string;
 }
@@ -37,14 +34,14 @@ type RequestPayload = {
 
 On successful response the account creation transaction was successfuly submitted to the WAX blockchain.
 
-- `requestedAccountName`: Same as in the request
+- `accountName`: The 12-character WAX account name ending in `.phoenix` that was created in this request
 - `ownerPublicKey`: Same as in the request
 - `activePublicKey`: Same as in the request
 - `transactionId`: The transaction ID of the account creation transaction
 
 ```ts
 type SuccessResponse = {
-  requestedAccountName: string;
+  accountName: string;
   ownerPublicKey: string;
   activePublicKey: string;
   transactionId: string;

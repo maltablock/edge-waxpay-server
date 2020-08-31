@@ -11,11 +11,9 @@ describe(`createAccount`, () => {
     });
 
     expect(res.statusCode).toEqual(500);
-    expect(res.body).toHaveLength(3);
+    expect(res.body).toHaveLength(1);
     const expectedErrors = [
-      expect.stringMatching(/not 12 characters long/i),
-      expect.stringMatching(/does not end with '.phoenix'/i),
-      expect.stringMatching(/is invalid/i),
+      expect.stringMatching(/parameter is not available/i),
     ];
     expect(res.body.map((error) => error.message)).toEqual(
       expect.arrayContaining(expectedErrors)
@@ -25,7 +23,6 @@ describe(`createAccount`, () => {
   it("should fail for invalid public keys", async () => {
     const app = request(_app) as any;
     const res = await app.post("/api/v1/activateAccount").send({
-      requestedAccountName: `abcd.phoenix`,
       ownerPublicKey: `EOS8DnoFK9D9HgAMdVocM58woFwWQZJe5L6PAYVQEQTH1xwWJ1Es`,
       activePublicKey: `EOS6D8ANTQCgpmtK4qPD8MwCqATade3y8Lcq8EWcEWthPoYV7sTx`,
     });
@@ -44,7 +41,6 @@ describe(`createAccount`, () => {
   it.skip("can create an account", async () => {
     const app = request(_app) as any;
     const params = {
-      requestedAccountName: `fabx.phoenix`,
       ownerPublicKey: `EOS5csHP9HNjy1y24KZu4PftFxdqxZWSs8hnjrTW8qXq73p6ZM8EU`,
       activePublicKey: `EOS5csHP9HNjy1y24KZu4PftFxdqxZWSs8hnjrTW8qXq73p6ZM8EU`,
     }
